@@ -1,0 +1,30 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# --- Environment ---
+.env
+.env.local
+
+# --- Backend data ---
+backend/data/index/
+
+# --- Node / Expo ---
+node_modules/
+.expo/
+dist/
+web-build/
+*.tsbuildinfo
+app/.expo/
+app/dist/
+
+# --- OS / IDE ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
