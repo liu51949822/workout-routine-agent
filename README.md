@@ -451,7 +451,7 @@ Tuning constants in `app/config.py`: `CHUNK_SIZE` (1000), `CHUNK_OVERLAP` (200),
 
 ## 📄 License
 
-MIT
+**Proprietary / Non-Open-Source** — All rights reserved. Personal, non-commercial use and studying the code for learning is permitted; **commercial use requires a separate written license**. See [LICENSE](LICENSE).
 
 ## 🙏 Acknowledgements
 
