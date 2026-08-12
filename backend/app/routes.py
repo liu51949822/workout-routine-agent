@@ -12,6 +12,7 @@ from langchain_core.messages import AIMessageChunk
 
 from app import config
 from app.agent import create_workout_agent
+from app.memory import MemoryService
 from app.schemas import ChatRequest, ChatResponse, Exercise, ExerciseLibrary
 
 logger = logging.getLogger(__name__)
@@ -50,8 +51,14 @@ async def chat(req: ChatRequest) -> ChatResponse:
     try:
         config.require_api_key()
         agent = _agent_or_error()
-        result = await agent.ainvoke({"messages": [{"role": "user", "content": req.message}]})
+        messages = _build_messages(req)
+        result = await agent.ainvoke({"messages": messages})
         reply = result["messages"][-1].content
+        # Record the turn into long-term + vector memory (silent on failure).
+        try:
+            _memory.record_turn(req.user_id, req.message, str(reply))
+        except Exception as exc:  # pragma: no cover - memory should never break chat
+            logger.warning("memory record failed: %s", exc)
         return ChatResponse(reply=str(reply))
     except HTTPException:
         raise
@@ -64,6 +71,9 @@ async def chat(req: ChatRequest) -> ChatResponse:
 # is expensive, so reuse it across requests. LangGraph compiled graphs are
 # stateless and safe to share.
 _agent_cache = None
+
+# Module-level memory service — in-memory, no DB required.
+_memory = MemoryService()
 
 
 def _agent_or_error():
@@ -78,16 +88,51 @@ def _agent_or_error():
         raise HTTPException(status_code=500, detail="Agent initialization failed")
 
 
+def _build_messages(req: ChatRequest) -> list[dict]:
+    """Assemble agent input messages with injected memory context.
+
+    Memory is injected as extra messages (system + context), NOT by mutating
+    the shared agent singleton, so the cached graph stays reusable.
+    """
+    memory = _memory.build_context(
+        session_id=req.session_id,
+        user_id=req.user_id,
+        history=req.history,
+        user_message=req.message,
+        profile=req.profile,
+    )
+    messages: list[dict] = []
+    if memory["context_text"]:
+        messages.append(
+            {
+                "role": "system",
+                "content": "Useful context from this user's past conversations "
+                f"(may be empty):\n{memory['context_text']}",
+            }
+        )
+    # Replay history so the agent sees the conversation so far (short-term memory).
+    if req.history:
+        for m in req.history[-8:]:
+            role = m.get("role")
+            content = m.get("content")
+            if role in ("user", "assistant") and content:
+                messages.append({"role": role, "content": str(content)})
+    messages.append({"role": "user", "content": req.message})
+    return messages
+
+
 async def _chat_stream(req: ChatRequest) -> AsyncGenerator[str, None]:
     """Yield SSE `data:` frames from the agent's token stream."""
+    reply_chunks: list[str] = []
     try:
         config.require_api_key()
         agent = _agent_or_error()
+        messages = _build_messages(req)
         # stream_mode="messages" yields (chunk, metadata) pairs for token-level
         # increments, so we never forward ToolMessage (retrieved doc text) or
         # full graph states to the client.
         async for chunk, _meta in agent.astream(
-            {"messages": [{"role": "user", "content": req.message}]},
+            {"messages": messages},
             stream_mode="messages",
         ):
             # In "messages" mode the chunk is an AIMessageChunk; Tool/System
@@ -98,10 +143,18 @@ async def _chat_stream(req: ChatRequest) -> AsyncGenerator[str, None]:
             content = chunk.content
             if not isinstance(content, str):
                 continue
+            reply_chunks.append(content)
             yield f"data: {json.dumps({'token': content}, ensure_ascii=False)}\n\n"
     except Exception as exc:
         logger.error("Stream error: %s", exc)
         yield f"data: {json.dumps({'error': 'Streaming failed'}, ensure_ascii=False)}\n\n"
+    finally:
+        # Write the completed turn to long-term + vector memory even on the
+        # streaming path (and even if the stream errored partway) — silently.
+        try:
+            _memory.record_turn(req.user_id, req.message, "".join(reply_chunks))
+        except Exception as exc:  # pragma: no cover - memory never breaks chat
+            logger.warning("memory record failed on stream: %s", exc)
     yield "data: {\"done\": true}\n\n"
 
 

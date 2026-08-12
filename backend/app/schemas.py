@@ -13,9 +13,21 @@ from pydantic import BaseModel, Field
 
 
 class ChatRequest(BaseModel):
-    """A single chat/consultation request."""
+    """A single chat/consultation request.
+
+    `session_id` / `history` / `profile` are optional and enable the memory
+    system (short-term, long-term, vector) without a database.
+    """
 
     message: str = Field(..., min_length=1, max_length=2000, description="User message")
+    session_id: Optional[str] = Field(None, description="Session id (thread-scoped short-term memory)")
+    user_id: Optional[str] = Field(None, description="User id (cross-thread long-term + vector memory)")
+    history: Optional[list[dict]] = Field(
+        None, description="Conversation history (single source of truth for short-term context)"
+    )
+    profile: Optional[dict] = Field(
+        None, description="User profile facts (long-term memory), e.g. from the mobile app"
+    )
 
 
 class ChatResponse(BaseModel):

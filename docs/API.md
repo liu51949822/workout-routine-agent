@@ -51,9 +51,28 @@ Send a message to the workout agent and receive a full (non-streaming) reply.
 { "message": "Give me a 10-minute core workout" }
 ```
 
-| Field | Type | Rules |
+With memory:
+
+```json
+{
+  "message": "Give me a 10-minute core workout",
+  "session_id": "sess-...",
+  "user_id": "user-...",
+  "history": [
+    { "role": "user", "content": "I want to build core strength" },
+    { "role": "assistant", "content": "Great, core strength..." }
+  ],
+  "profile": { "goals": ["strength"], "constraints": ["bad knees"] }
+}
+```
+
+| Field | Type | Notes |
 |---|---|---|
 | `message` | string | required, 1–2000 characters |
+| `session_id` | string? | thread-scoped short-term memory |
+| `user_id` | string? | cross-thread long-term + vector memory |
+| `history` | array? | conversation so far (single source of truth for short-term context) |
+| `profile` | object? | user profile facts (long-term memory) |
 
 **Responses**
 

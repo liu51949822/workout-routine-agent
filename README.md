@@ -44,7 +44,7 @@ This is a **full-stack** workout assistant built as:
 - FAISS index **persisted to disk** (`save_local` / `load_local`) — no rebuild on restart
 - Inline system prompt (no `hub.pull` runtime network dependency)
 - The interactive CLI is preserved (`python -m app.scripts.cli`)
-- 24 pytest tests, fully offline (mocked LLM)
+- 38 pytest tests, fully offline (mocked LLM)
 
 **Mobile App (Expo / React Native)**
 
@@ -263,7 +263,7 @@ workout-routine-agent/
 │   ├── data/
 │   │   ├── resources/        # seed fitness documents (.txt)
 │   │   └── index/            # persisted FAISS index (gitignored)
-│   ├── tests/                # 24 pytest tests (offline)
+│   ├── tests/                # 38 pytest tests (offline)
 │   ├── requirements.txt
 │   └── pytest.ini
 ├── app/                       # Expo React Native app
@@ -397,12 +397,31 @@ See [docs/API.md](docs/API.md) for full examples, including SSE frame formats an
 
 ---
 
+## 🧠 Memory System
+
+The backend implements a **full memory stack** (mirroring LangGraph's Checkpointer + Store patterns) so users can hold multi-turn, cross-session coaching conversations:
+
+| Memory type | Purpose | Implementation |
+|---|---|---|
+| **Short-term (thread)** | Multi-turn context within a session | Rolling window (client `history` is the source of truth) + **LLM summarization** of earlier turns (`app/memory.py` → `ShortTermMemory`) |
+| **Long-term (cross-thread)** | Persistent user profile across sessions | Structured profile (goals / constraints / preferences / equipment) extracted from messages and persisted to disk (`LongTermMemory`) |
+| **Vector / semantic** | Recall similar past conversations | Past QA pairs embedded → cosine similarity search (`VectorMemory`) |
+
+**Design highlights:**
+
+- All in-memory by default → **runs without any database**; interfaces mirror LangGraph Store semantics so a production swap (PostgresStore) is a drop-in change.
+- The **client `history` is the single source of truth** for short-term context; the server only accumulates a summary.
+- Memory context is injected as **input messages** (system + replayed history) — the agent singleton is never rebuilt per request.
+- Memory operations **fail silently** — they never break a chat request.
+
+Request body additions (all optional): `session_id`, `user_id`, `history`, `profile`. The mobile app auto-generates and persists `session_id`/`user_id` in AsyncStorage and sends its saved `profile`.
+
 ## 🧪 Tests
 
 ```bash
 cd backend
 .venv/Scripts/python -m pytest -q
-# 24 passed — fully offline (LLM & embeddings are mocked)
+# 38 passed — fully offline (LLM & embeddings are mocked)
 ```
 
 The app type-checks with:

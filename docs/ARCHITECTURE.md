@@ -172,6 +172,34 @@ sequenceDiagram
 - **Backend**: FAISS index persisted to disk; rebuild only when `data/index/` is missing.
 - **App**: user data (profile, check-ins, favorites, metrics, saved plans) lives on-device in AsyncStorage. No backend database is required for the demo.
 
+## Memory System
+
+Three memory types (mirroring LangGraph Checkpointer + Store):
+
+```mermaid
+flowchart LR
+    subgraph Memory["🧠 app/memory.py"]
+        S["Short-term<br/>summary + window"]
+        L["Long-term<br/>user profile"]
+        V["Vector<br/>semantic search"]
+    end
+
+    Req["Request: session_id / user_id / history / profile"] --> S
+    Req --> L
+    Req --> V
+
+    S -->|context_text| Msg["Injected input messages<br/>(system + replayed history)"]
+    L --> Msg
+    V --> Msg
+    Msg --> Agent["create_agent (singleton)"]
+
+    style Memory fill:#EEF2FF,stroke:#2563EB
+```
+
+- **Client `history` is the single source of truth** for short-term context; the server only accumulates a summary.
+- Memory is injected as **input messages** (never mutates the shared agent singleton).
+- All stores are in-memory (profile optionally file-persisted) — no DB required; production can swap to PostgresStore.
+
 ## Performance: Agent Singleton
 
 The agent (FAISS load + graph compile) is built **once** and cached module-level in `routes.py`. Subsequent requests reuse the same compiled graph — LangGraph compiled graphs are stateless and safe to share across concurrent requests.

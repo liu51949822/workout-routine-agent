@@ -13,6 +13,7 @@ venv/
 
 # --- Backend data ---
 backend/data/index/
+backend/data/memory/
 
 # --- Node / Expo ---
 node_modules/

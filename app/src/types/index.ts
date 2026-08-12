@@ -4,6 +4,11 @@
 
 export interface ChatRequest {
   message: string;
+  // Memory payload (optional) — mirrors backend ChatRequest
+  session_id?: string;
+  user_id?: string;
+  history?: { role: 'user' | 'assistant'; content: string }[];
+  profile?: Partial<Profile>;
 }
 
 export interface ChatResponse {

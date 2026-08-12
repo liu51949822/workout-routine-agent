@@ -39,17 +39,18 @@ export const api = {
 
   /**
    * Streaming chat via Server-Sent Events (POST + ReadableStream, since
-   * EventSource only supports GET).
+   * EventSource only supports GET). `memory` enables the backend memory system.
    */
   async chatStream(
     message: string,
     onToken: (token: string) => void,
     signal?: AbortSignal,
+    memory?: { session_id?: string; user_id?: string; history?: { role: string; content: string }[]; profile?: object },
   ): Promise<void> {
     const res = await fetch(`${API_BASE}/chat/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, ...memory }),
       signal,
     });
     if (!res.ok || !res.body) {

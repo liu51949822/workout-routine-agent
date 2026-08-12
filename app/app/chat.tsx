@@ -10,12 +10,13 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { api } from '../src/api/client';
 import { Card, Input, PrimaryButton, Screen, theme } from '../src/components/ui';
 import { BrandHeader } from '../src/components/Logo';
 import { store } from '../src/store/storage';
-import type { WorkoutPlan } from '../src/types';
+import type { Profile, WorkoutPlan } from '../src/types';
 
 interface Msg {
   role: 'user' | 'assistant';
@@ -37,6 +38,26 @@ export default function Chat() {
   const [saveBtn, setSaveBtn] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+
+  // ---- Memory: stable session/user ids + profile (loaded once) ----
+  const sessionIdRef = useRef<string | null>(null);
+  const userIdRef = useRef<string | null>(null);
+  const profileRef = useRef<Profile | null>(null);
+
+  // Resolve ids + profile on first mount (from AsyncStorage; generate if absent).
+  useEffect(() => {
+    (async () => {
+      const sid = await AsyncStorage.getItem('wa_session');
+      sessionIdRef.current = sid ?? `sess-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      if (!sid) await AsyncStorage.setItem('wa_session', sessionIdRef.current);
+
+      const uid = await AsyncStorage.getItem('wa_user');
+      userIdRef.current = uid ?? `user-${Math.random().toString(36).slice(2, 10)}`;
+      if (!uid) await AsyncStorage.setItem('wa_user', userIdRef.current);
+
+      profileRef.current = await store.getProfile();
+    })();
+  }, []);
 
   // Abort any in-flight stream when the screen unmounts (avoids wasted requests).
   useEffect(() => {
@@ -69,12 +90,23 @@ export default function Chat() {
     const controller = new AbortController();
     abortRef.current = controller;
 
+    // Memory payload: session/user ids + conversation history + profile.
+    // history is the single source of truth for the backend short-term context.
+    const memory = {
+      session_id: sessionIdRef.current ?? undefined,
+      user_id: userIdRef.current ?? undefined,
+      history: messages
+        .filter((m) => m.text && !m.streaming)
+        .map((m) => ({ role: m.role, content: m.text })),
+      profile: profileRef.current ?? undefined,
+    };
+
     try {
-      await api.chatStream(message, appendToken, controller.signal);
+      await api.chatStream(message, appendToken, controller.signal, memory);
     } catch (err) {
       // fall back to non-streaming on error
       try {
-        const res = await api.chat({ message });
+        const res = await api.chat({ message, ...memory } as any);
         patchLast({ text: res.reply, streaming: false });
       } catch (e) {
         patchLast({ text: `Error: ${(e as Error).message}`, streaming: false });
