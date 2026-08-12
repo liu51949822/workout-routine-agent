@@ -2,7 +2,7 @@
 
 An AI-powered personal training assistant that generates **tailored workout routines** from your fitness notes, exercise-science research, YouTube transcripts, and web articles.
 
-This is an **optimized, full-stack** version of the original [EnkrateiaLucca/workout-routine-agent](https://github.com/EnkrateiaLucca/workout-routine-agent). It upgrades the single-file CLI into:
+This is a **full-stack** workout assistant that upgrades the single-file CLI approach into:
 
 - A **FastAPI backend** exposing the RAG agent over REST + SSE
 - A **React Native mobile app (Expo)** with a rich feature set
@@ -282,5 +282,4 @@ MIT
 
 ## 🙏 Acknowledgements
 
-- Original project: [EnkrateiaLucca/workout-routine-agent](https://github.com/EnkrateiaLucca/workout-routine-agent)
 - [LangChain](https://python.langchain.com/) · [LangGraph](https://langchain-ai.github.io/langgraph/) · [FastAPI](https://fastapi.tiangolo.com/) · [Expo](https://expo.dev/)
